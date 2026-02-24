@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+  db:
+    container_name: db
+    image: postgres:15   
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data
+    restart: always
+    command: postgres -c log_directory=/var/log/postgresql
+    expose:
+      - 5432
+
+
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - "6379:6379"
+
+  web:
+    container_name: backend-HR
+    working_dir: /usr/src/app
+    restart: always
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./config:/usr/src/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+
+  celery:
+    build: .
+    command: celery -A config worker -l info
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./config:/usr/src/app
+
+  celery-beat:
+    build: .
+    command: celery -A config beat -l info
+    volumes:
+      - ./config:/usr/src/app
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:
